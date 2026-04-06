@@ -2,6 +2,8 @@
 
 A real-time voice assistant that runs entirely on your local machine. You speak, it listens, thinks, and talks back — no cloud, no API keys, no internet required.
 
+<img width="903" height="732" alt="image" src="https://github.com/user-attachments/assets/2b42b72c-c3d2-4b82-b038-4368478b4ef2" />
+
 ## How It Works
 
 ```
