@@ -9,8 +9,6 @@ class SpeechToText {
 public:
     bool init(const std::string& model_path);
     void shutdown();
-
-    // Hot-swap to a different whisper model (e.g. multilingual on language switch).
     bool reinit(const std::string& model_path);
 
     std::string transcribe(const std::vector<float>& pcm_audio,

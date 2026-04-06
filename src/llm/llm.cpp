@@ -7,10 +7,6 @@
 #include <thread>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 static std::string token_to_piece(const llama_model* model, llama_token token) {
     const llama_vocab* vocab = llama_model_get_vocab(model);
     char buf[256];
@@ -18,10 +14,6 @@ static std::string token_to_piece(const llama_model* model, llama_token token) {
     if (n < 0) return {};
     return std::string(buf, static_cast<size_t>(n));
 }
-
-// ---------------------------------------------------------------------------
-// init / shutdown
-// ---------------------------------------------------------------------------
 
 bool LLMEngine::init(const LLMConfig& cfg) {
     m_cfg = cfg;
@@ -41,7 +33,6 @@ bool LLMEngine::init(const LLMConfig& cfg) {
         return false;
     }
 
-    // Print model info
     {
         char desc[256];
         llama_model_desc(m_model, desc, sizeof(desc));
@@ -69,14 +60,12 @@ bool LLMEngine::init(const LLMConfig& cfg) {
         return false;
     }
 
-    // Build sampler chain: top-p → temperature → dist
     llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
     m_sampler = llama_sampler_chain_init(sparams);
     llama_sampler_chain_add(m_sampler, llama_sampler_init_top_p(cfg.top_p, 1));
     llama_sampler_chain_add(m_sampler, llama_sampler_init_temp(cfg.temperature));
     llama_sampler_chain_add(m_sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-    // Seed history with system prompt
     if (!cfg.system_prompt.empty()) {
         m_history.push_back({"system", cfg.system_prompt});
     }
@@ -103,28 +92,19 @@ void LLMEngine::shutdown() {
     llama_backend_free();
 }
 
-// ---------------------------------------------------------------------------
-// History management
-// ---------------------------------------------------------------------------
-
 void LLMEngine::clear_history() {
     m_history.clear();
     if (!m_cfg.system_prompt.empty()) {
         m_history.push_back({"system", m_cfg.system_prompt});
     }
-    // Clear KV cache so next call re-encodes everything
     llama_memory_clear(llama_get_memory(m_ctx), false);
     m_n_past = 0;
 }
 
 void LLMEngine::set_system_prompt(const std::string& prompt) {
     m_cfg.system_prompt = prompt;
-    clear_history();  // re-seeds history with the new system prompt
+    clear_history();
 }
-
-// ---------------------------------------------------------------------------
-// Prompt formatting via llama_chat_apply_template
-// ---------------------------------------------------------------------------
 
 std::string LLMEngine::build_prompt(bool add_assistant_turn) const {
     std::vector<llama_chat_message> msgs;
@@ -133,10 +113,8 @@ std::string LLMEngine::build_prompt(bool add_assistant_turn) const {
         msgs.push_back({msg.role.c_str(), msg.content.c_str()});
     }
 
-    // Get the model's embedded chat template (nullptr = use default)
     const char* tmpl = llama_model_chat_template(m_model, nullptr);
 
-    // First call: measure required size
     int required = llama_chat_apply_template(tmpl, msgs.data(),
                                              msgs.size(), add_assistant_turn,
                                              nullptr, 0);
@@ -153,25 +131,19 @@ std::string LLMEngine::build_prompt(bool add_assistant_turn) const {
     return buf;
 }
 
-// ---------------------------------------------------------------------------
-// Core inference (shared by complete() and complete_streaming())
-// ---------------------------------------------------------------------------
-
 std::string LLMEngine::run_inference(const std::string& prompt,
                                      std::function<void(const std::string&)> on_token) {
     const llama_vocab* vocab = llama_model_get_vocab(m_model);
 
-    // Tokenize the full prompt
     std::vector<llama_token> tokens(prompt.size() + 64);
     int n_tokens = llama_tokenize(vocab,
                                   prompt.c_str(),
                                   static_cast<int32_t>(prompt.size()),
                                   tokens.data(),
                                   static_cast<int32_t>(tokens.size()),
-                                  /*add_special=*/true,
-                                  /*parse_special=*/true);
+                                  true,
+                                  true);
     if (n_tokens < 0) {
-        // Buffer was too small — retry with exact size
         tokens.resize(static_cast<size_t>(-n_tokens));
         n_tokens = llama_tokenize(vocab,
                                   prompt.c_str(),
@@ -186,7 +158,6 @@ std::string LLMEngine::run_inference(const std::string& prompt,
     }
     tokens.resize(static_cast<size_t>(n_tokens));
 
-    // Encode the prompt tokens (prefill)
     {
         llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
         if (llama_decode(m_ctx, batch) != 0) {
@@ -196,14 +167,12 @@ std::string LLMEngine::run_inference(const std::string& prompt,
     }
     m_n_past += n_tokens;
 
-    // Reset sampler state for this generation
     llama_sampler_reset(m_sampler);
 
     std::string response;
     int generated = 0;
 
     while (generated < m_cfg.max_tokens) {
-        // Sample next token
         llama_token new_token = llama_sampler_sample(m_sampler, m_ctx, -1);
 
         if (llama_vocab_is_eog(vocab, new_token)) {
@@ -217,7 +186,6 @@ std::string LLMEngine::run_inference(const std::string& prompt,
         }
         ++generated;
 
-        // Decode the newly sampled token
         llama_batch batch = llama_batch_get_one(&new_token, 1);
         if (llama_decode(m_ctx, batch) != 0) {
             fprintf(stderr, "[LLM] llama_decode (generation) failed\n");
@@ -229,16 +197,12 @@ std::string LLMEngine::run_inference(const std::string& prompt,
     return response;
 }
 
-// ---------------------------------------------------------------------------
-// Public interface
-// ---------------------------------------------------------------------------
-
 std::string LLMEngine::complete(const std::string& user_message) {
     if (!is_ready()) return {};
 
     m_history.push_back({"user", user_message});
 
-    const std::string prompt = build_prompt(/*add_assistant_turn=*/true);
+    const std::string prompt = build_prompt(true);
     if (prompt.empty()) {
         m_history.pop_back();
         return {};
@@ -256,7 +220,7 @@ void LLMEngine::complete_streaming(const std::string& user_message,
 
     m_history.push_back({"user", user_message});
 
-    const std::string prompt = build_prompt(/*add_assistant_turn=*/true);
+    const std::string prompt = build_prompt(true);
     if (prompt.empty()) {
         m_history.pop_back();
         return;

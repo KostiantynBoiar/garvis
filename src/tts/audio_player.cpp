@@ -9,15 +9,9 @@
 #include <thread>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// Playback state — one per device, driven by the miniaudio callback thread.
-// We feed STEREO float32 to avoid any reliance on miniaudio's internal
-// converter, which can fail silently on some WASAPI endpoints.
-// ---------------------------------------------------------------------------
-
 struct PlaybackState {
-    const int16_t*      data   = nullptr;   // mono s16 source buffer
-    size_t              total  = 0;         // total MONO frames
+    const int16_t*      data   = nullptr;
+    size_t              total  = 0;
     std::atomic<size_t> cursor{0};
     float               volume = 1.0f;
     std::atomic<bool>   done{false};
@@ -26,7 +20,6 @@ struct PlaybackState {
     const char*         tag = "???";
 };
 
-// Callback delivers STEREO FLOAT frames — matches WASAPI internal format.
 static void playback_callback(ma_device* device, void* output,
                                const void*, ma_uint32 frame_count)
 {
@@ -44,8 +37,8 @@ static void playback_callback(ma_device* device, void* output,
         const float scale = ps->volume / 32768.0f;
         for (size_t i = 0; i < to_copy; ++i) {
             const float sample = static_cast<float>(ps->data[cur + i]) * scale;
-            out[i * 2 + 0] = sample;  // Left
-            out[i * 2 + 1] = sample;  // Right
+            out[i * 2 + 0] = sample;
+            out[i * 2 + 1] = sample;
         }
         ps->cursor.store(cur + to_copy, std::memory_order_relaxed);
     }
@@ -56,10 +49,6 @@ static void playback_callback(ma_device* device, void* output,
         ps->done.store(true, std::memory_order_release);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Open one playback device (stereo f32 to match WASAPI natively).
-// ---------------------------------------------------------------------------
 
 static const char* backend_name(ma_backend b) {
     switch (b) {
@@ -74,8 +63,8 @@ static bool open_device(ma_device& dev, PlaybackState& ps,
                          uint32_t sample_rate, const ma_device_id* device_id)
 {
     ma_device_config cfg   = ma_device_config_init(ma_device_type_playback);
-    cfg.playback.format    = ma_format_f32;   // match WASAPI internal format
-    cfg.playback.channels  = 2;               // match WASAPI internal channels
+    cfg.playback.format    = ma_format_f32;
+    cfg.playback.channels  = 2;
     cfg.playback.pDeviceID = const_cast<ma_device_id*>(device_id);
     cfg.sampleRate         = sample_rate;
     cfg.dataCallback       = playback_callback;
@@ -110,10 +99,6 @@ static bool open_device(ma_device& dev, PlaybackState& ps,
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 static constexpr uint32_t OUTPUT_RATE = 48000;
 
 void play_pcm(const std::vector<int16_t>& samples,
@@ -123,7 +108,6 @@ void play_pcm(const std::vector<int16_t>& samples,
 {
     if (samples.empty()) return;
 
-    // Resample to 48 kHz to match the standard WASAPI shared-mode rate.
     std::vector<int16_t> resampled;
     const std::vector<int16_t>* pcm_ptr;
     if (sample_rate != OUTPUT_RATE) {

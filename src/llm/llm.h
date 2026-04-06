@@ -12,7 +12,7 @@ struct LLMConfig {
     std::string model_path;
     std::string system_prompt;
     int   n_ctx       = 4096;
-    int   n_threads   = 0;    // 0 = hardware_concurrency - 1
+    int   n_threads   = 0;
     int   max_tokens  = 512;
     float temperature = 0.7f;
     float top_p       = 0.9f;

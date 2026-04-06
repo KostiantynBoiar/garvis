@@ -6,7 +6,7 @@ void TTSStreamer::start(const TextToSpeech*  tts,
                         const ma_device_id*  speaker_id,
                         float                speaker_volume,
                         float                loopback_volume) {
-    abort();  // clean up any previous run
+    abort();
 
     m_tts             = tts;
     m_mixer           = mixer;
@@ -18,7 +18,6 @@ void TTSStreamer::start(const TextToSpeech*  tts,
     m_abort      = false;
     m_active     = true;
 
-    // Drain leftover queue entries from a previous run
     { std::lock_guard<std::mutex> l(m_text_mtx); while (!m_text_q.empty()) m_text_q.pop(); }
     { std::lock_guard<std::mutex> l(m_pcm_mtx);  while (!m_pcm_q.empty())  m_pcm_q.pop();  }
 
@@ -36,10 +35,10 @@ void TTSStreamer::feed(const std::string& chunk) {
 }
 
 void TTSStreamer::finish() {
-    if (!m_active.load()) return;  // already stopped (e.g. by abort())
+    if (!m_active.load()) return;
 
     m_feeding = false;
-    m_text_cv.notify_all();  // wake synth_thread so it can observe m_feeding == false
+    m_text_cv.notify_all();
 
     if (m_synth_thread.joinable()) m_synth_thread.join();
     if (m_play_thread.joinable())  m_play_thread.join();
@@ -47,7 +46,7 @@ void TTSStreamer::finish() {
 }
 
 void TTSStreamer::abort() {
-    if (!m_active.load()) return;  // nothing running — prevents double-join
+    if (!m_active.load()) return;
 
     m_abort   = true;
     m_feeding = false;
@@ -62,10 +61,6 @@ void TTSStreamer::abort() {
 
 bool TTSStreamer::is_active() const { return m_active.load(); }
 
-// ---------------------------------------------------------------------------
-// synth_loop -- pops text chunks, synthesises via piper, pushes PCM
-// ---------------------------------------------------------------------------
-
 void TTSStreamer::synth_loop() {
     while (true) {
         std::string chunk;
@@ -76,7 +71,7 @@ void TTSStreamer::synth_loop() {
             });
 
             if (m_abort) break;
-            if (m_text_q.empty()) break;  // m_feeding == false and queue empty -> done
+            if (m_text_q.empty()) break;
 
             chunk = std::move(m_text_q.front());
             m_text_q.pop();
@@ -94,14 +89,9 @@ void TTSStreamer::synth_loop() {
         }
     }
 
-    // Signal play_thread that no more PCM will arrive
     m_synth_done = true;
     m_pcm_cv.notify_all();
 }
-
-// ---------------------------------------------------------------------------
-// play_loop -- pops PCM chunks: plays on speaker AND feeds to mixer
-// ---------------------------------------------------------------------------
 
 void TTSStreamer::play_loop() {
     while (true) {
@@ -120,11 +110,9 @@ void TTSStreamer::play_loop() {
             m_pcm_q.pop();
         }
 
-        // Feed TTS audio into the mixer (mic + TTS -> VB-CABLE)
         if (m_mixer && m_mixer->is_running())
             m_mixer->feed_tts(pcm, 22050, m_loopback_volume);
 
-        // Play on the local speaker
         play_pcm(pcm, 22050, m_speaker_id, m_speaker_volume);
     }
 }

@@ -39,8 +39,6 @@ std::string SpeechToText::transcribe(const std::vector<float>& pcm_audio,
                                       const std::string& lang) {
     if (!m_ctx || pcm_audio.empty()) return {};
 
-    // Multilingual model required for non-English; warn if the user loaded an
-    // English-only model (filename contains ".en") with a non-English lang tag.
     if (lang != "en") {
         const char* model_type = whisper_model_type_readable(m_ctx);
         if (model_type && std::string(model_type).find(".en") != std::string::npos) {
@@ -51,21 +49,18 @@ std::string SpeechToText::transcribe(const std::vector<float>& pcm_audio,
         }
     }
 
-    // Beam search is noticeably more accurate than greedy at a small latency cost.
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
     params.n_threads        = std::max(1, static_cast<int>(
                                   std::thread::hardware_concurrency()) - 1);
     params.beam_search.beam_size = 5;
     params.language         = lang.c_str();
     params.no_timestamps    = true;
-    params.single_segment   = false;  // let whisper decide segment boundaries
+    params.single_segment   = false;
     params.print_special    = false;
     params.print_progress   = false;
     params.print_realtime   = false;
     params.print_timestamps = false;
 
-    // An initial prompt primes the vocabulary towards conversational speech and
-    // the assistant's name, reducing hallucinations on short or noisy inputs.
     const std::string prompt = (lang == "ru")
         ? "Привет Гарвис. Как дела? Что ты умеешь?"
         : "Hey Garvis. How are you? What can you do?";

@@ -6,10 +6,6 @@
 #include <string>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// Colour palette
-// ---------------------------------------------------------------------------
-
 static constexpr Color COL_BG          = {15,  15,  23,  255};
 static constexpr Color COL_SURFACE     = {24,  24,  38,  255};
 static constexpr Color COL_BORDER      = {45,  45,  70,  255};
@@ -22,10 +18,6 @@ static constexpr Color COL_ACCENT_RED  = {255, 90,  90,  255};
 static constexpr Color COL_ACCENT_PRP  = {170, 100, 255, 255};
 static constexpr Color COL_MIC_BAR_BG  = {35,  35,  55,  255};
 
-// ---------------------------------------------------------------------------
-// Layout constants
-// ---------------------------------------------------------------------------
-
 static constexpr int PAD          = 24;
 static constexpr int HEADER_H     = 64;
 static constexpr int MIC_BAR_H    = 48;
@@ -37,10 +29,6 @@ static constexpr int FONT_STATUS  = 15;
 static constexpr int TURN_GAP     = 14;
 static constexpr int BUBBLE_PAD   = 10;
 static constexpr int MAX_CHAT_W   = 780;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 static Color state_badge_color(AppState s) {
     switch (s) {
@@ -75,7 +63,6 @@ static Color cap_indicator_color(CaptureState s) {
     return COL_TEXT_DIM;
 }
 
-// Draws word-wrapped text and returns the total pixel height used.
 static int draw_wrapped(const std::string& text, int x, int y,
                         int font_size, int max_w, Color col) {
     if (text.empty()) return 0;
@@ -96,7 +83,6 @@ static int draw_wrapped(const std::string& text, int x, int y,
     return cy - y;
 }
 
-// Returns the pixel height that draw_wrapped would produce.
 static int wrapped_height(const std::string& text, int font_size, int max_w) {
     if (text.empty()) return 0;
     const int char_w = std::max(1, font_size / 2);
@@ -114,10 +100,6 @@ static int wrapped_height(const std::string& text, int font_size, int max_w) {
     }
     return lines * (font_size + 3);
 }
-
-// ---------------------------------------------------------------------------
-// AppUI
-// ---------------------------------------------------------------------------
 
 void AppUI::init(int width, int height, const char* title) {
     m_width  = width;
@@ -154,10 +136,6 @@ void AppUI::draw(UIState& state) {
     EndDrawing();
 }
 
-// ---------------------------------------------------------------------------
-// Header  (y = 0 .. HEADER_H)
-// ---------------------------------------------------------------------------
-
 void AppUI::draw_header(const UIState& s) {
     DrawRectangle(0, 0, m_width, HEADER_H, COL_SURFACE);
     DrawLine(0, HEADER_H, m_width, HEADER_H, COL_BORDER);
@@ -177,10 +155,6 @@ void AppUI::draw_header(const UIState& s) {
     DrawText(badge, bx + 10, by + 4, FONT_LABEL, badge_c);
 }
 
-// ---------------------------------------------------------------------------
-// Mic bar  (y = HEADER_H .. HEADER_H + MIC_BAR_H)
-// ---------------------------------------------------------------------------
-
 void AppUI::draw_mic_bar(const UIState& s) {
     const int y0 = HEADER_H;
 
@@ -190,38 +164,30 @@ void AppUI::draw_mic_bar(const UIState& s) {
     const Color dot_c = s.mic_muted ? COL_TEXT_DIM
                                     : cap_indicator_color(s.cap_state);
 
-    // Circle indicator
     DrawCircle(PAD + 8, y0 + MIC_BAR_H / 2, 7, dot_c);
 
-    // Label
     const char* mic_label = s.mic_muted ? "MIC PAUSED" : "MIC";
     DrawText(mic_label, PAD + 22, y0 + (MIC_BAR_H - FONT_STATUS) / 2,
              FONT_STATUS, s.mic_muted ? COL_TEXT_DIM : COL_TEXT);
 
-    // RMS bar
     constexpr int BAR_X = PAD + 100;
     constexpr int BAR_H = 10;
     const int     bar_y = y0 + (MIC_BAR_H - BAR_H) / 2;
     const int     bar_w = m_width - BAR_X - PAD - 60;
 
     DrawRectangle(BAR_X, bar_y, bar_w, BAR_H, COL_MIC_BAR_BG);
-    DrawRectangleRounded({0, 0, 0, 0}, 0, 0, BLANK); // flush
+    DrawRectangleRounded({0, 0, 0, 0}, 0, 0, BLANK);
 
-    const float clamped = std::min(s.rms / 0.08f, 1.0f);  // 0.08 ≈ loud speech
+    const float clamped = std::min(s.rms / 0.08f, 1.0f);
     const int   filled  = static_cast<int>(clamped * bar_w);
     if (filled > 0) {
         DrawRectangle(BAR_X, bar_y, filled, BAR_H,
                       s.mic_muted ? COL_TEXT_DIM : dot_c);
     }
 
-    // Threshold tick at 0.02 / 0.08 = 25%
     const int tick_x = BAR_X + static_cast<int>(0.25f * bar_w);
     DrawLine(tick_x, bar_y - 3, tick_x, bar_y + BAR_H + 3, COL_ACCENT_YLW);
 }
-
-// ---------------------------------------------------------------------------
-// Chat area  (y = HEADER_H + MIC_BAR_H .. m_height - FOOTER_H)
-// ---------------------------------------------------------------------------
 
 void AppUI::draw_chat(const UIState& s) {
     const int top    = HEADER_H + MIC_BAR_H + PAD;
@@ -232,8 +198,6 @@ void AppUI::draw_chat(const UIState& s) {
     const int chat_w = std::min(m_width - 2 * PAD, MAX_CHAT_W);
     const int chat_x = PAD;
 
-    // Build a flat list of lines we want to show, bottom-up.
-    // Each entry: { text, color, indent }
     struct Line { std::string text; Color color; bool is_label; };
     std::vector<Line> lines;
 
@@ -248,7 +212,6 @@ void AppUI::draw_chat(const UIState& s) {
         }
     };
 
-    // Partial in-progress lines (shown at the bottom)
     if (!s.partial_assistant.empty()) {
         lines.push_back({"Garvis:", COL_ACCENT_GRN, true});
         lines.push_back({s.partial_assistant, COL_TEXT_DIM, false});
@@ -262,7 +225,6 @@ void AppUI::draw_chat(const UIState& s) {
         push_turn(s.history[static_cast<size_t>(i)]);
     }
 
-    // Measure total height bottom-up and paint what fits
     int y = bottom;
     const int label_h = FONT_CHAT + 4;
     const int text_indent = 16;
@@ -284,8 +246,6 @@ void AppUI::draw_chat(const UIState& s) {
         }
     }
 
-    // Scissor mask — draw a gradient fade at the top of the chat zone
-    // to give a soft clip instead of a hard cut.
     for (int row = 0; row < 32; ++row) {
         const unsigned char alpha = static_cast<unsigned char>(
             (1.0f - row / 32.0f) * 220.0f);
@@ -293,10 +253,6 @@ void AppUI::draw_chat(const UIState& s) {
                       {COL_BG.r, COL_BG.g, COL_BG.b, alpha});
     }
 }
-
-// ---------------------------------------------------------------------------
-// Footer  (y = m_height - FOOTER_H .. m_height)
-// ---------------------------------------------------------------------------
 
 void AppUI::draw_footer(UIState& s) {
     const int y0 = m_height - FOOTER_H;
@@ -317,7 +273,6 @@ void AppUI::draw_footer(UIState& s) {
     }
     DrawText(hint, PAD, y0 + (FOOTER_H - FONT_STATUS) / 2, FONT_STATUS, hint_c);
 
-    // Language toggle — right-aligned in the footer
     const bool is_ru    = (s.language == Language::Russian);
     const char* lbl_en  = "EN";
     const char* lbl_ru  = "RU";
@@ -329,11 +284,9 @@ void AppUI::draw_footer(UIState& s) {
     const int btn_ru_x = m_width - PAD - btn_w;
     const int btn_en_x = btn_ru_x - btn_gap - btn_w;
 
-    // Gear / Settings button (sits to the left of EN/RU)
     const int gear_w  = 46;
     const int gear_x  = btn_en_x - btn_gap - gear_w;
 
-    // STOP button — visible only while Garvis is speaking or thinking
     const int stop_w = 46;
     const int stop_x = gear_x - btn_gap - stop_w;
 
@@ -393,7 +346,6 @@ void AppUI::draw_footer(UIState& s) {
     draw_lang_btn(btn_en_x, lbl_en, !is_ru);
     draw_lang_btn(btn_ru_x, lbl_ru,  is_ru);
 
-    // Detect click on the inactive button only (clicking active is a no-op)
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         const Vector2 mp = GetMousePosition();
         Rectangle rect_en = {(float)btn_en_x, (float)btn_y, (float)btn_w, (float)btn_h};
@@ -405,25 +357,20 @@ void AppUI::draw_footer(UIState& s) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Settings overlay panel
-// ---------------------------------------------------------------------------
-
 static constexpr int SET_PANEL_W    = 500;
 static constexpr int SET_ITEM_H     = 26;
-static constexpr int SET_LIST_ROWS  = 5;   // visible rows per list
+static constexpr int SET_LIST_ROWS  = 5;
 static constexpr int SET_HEADER_H   = 22;
 static constexpr int SET_LIST_H     = SET_ITEM_H * SET_LIST_ROWS;
 static constexpr int SET_SECTION_H  = SET_HEADER_H + SET_LIST_H + 8;
-static constexpr int SET_SLIDER_H   = 40;   // loopback volume slider section
-static constexpr int SET_PANEL_H    = SET_SECTION_H * 3 + SET_SLIDER_H + 48;  // 3 sections + slider + title bar
+static constexpr int SET_SLIDER_H   = 40;
+static constexpr int SET_PANEL_H    = SET_SECTION_H * 3 + SET_SLIDER_H + 48;
 
-// Draw one device list section. Returns true if any row was clicked.
 static bool draw_device_list(
     const char*                       title,
     const std::vector<AudioDeviceInfo>& devices,
-    int                               selected,   // -1 = default
-    int&                              scroll,     // in/out: first visible row index
+    int                               selected,
+    int&                              scroll,
     int                               px, int py, int pw,
     int&                              new_selected_out)
 {
@@ -433,13 +380,11 @@ static bool draw_device_list(
     DrawText(title, lx, py, FONT_LABEL, COL_TEXT_DIM);
     py += SET_HEADER_H;
 
-    // Clamp scroll
-    const int total_rows = static_cast<int>(devices.size()) + 1; // +1 for "(default)"
+    const int total_rows = static_cast<int>(devices.size()) + 1;
     if (scroll < 0) scroll = 0;
     if (scroll > std::max(0, total_rows - SET_LIST_ROWS))
         scroll = std::max(0, total_rows - SET_LIST_ROWS);
 
-    // Mouse scroll inside the list
     const Vector2 mp  = GetMousePosition();
     const Rectangle list_rect = {(float)lx, (float)py, (float)lw, (float)SET_LIST_H};
     if (CheckCollisionPointRec(mp, list_rect)) {
@@ -452,7 +397,7 @@ static bool draw_device_list(
     new_selected_out = selected;
 
     for (int row = 0; row < SET_LIST_ROWS; ++row) {
-        const int idx = row + scroll - 1;  // idx == -1 means "(default)"
+        const int idx = row + scroll - 1;
         const int ry  = py + row * SET_ITEM_H;
 
         const bool is_active = (idx == selected);
@@ -465,7 +410,6 @@ static bool draw_device_list(
             label = "(default)";
         } else if (idx < static_cast<int>(devices.size())) {
             label_owned = devices[static_cast<size_t>(idx)].name;
-            // Trim label to fit
             while (!label_owned.empty() &&
                    MeasureText(label_owned.c_str(), FONT_STATUS) > lw - 8)
                 label_owned.resize(label_owned.size() - 1);
@@ -485,10 +429,8 @@ static bool draw_device_list(
         }
     }
 
-    // Draw list border
     DrawRectangleLines(lx, py, lw, SET_LIST_H, COL_BORDER);
 
-    // Scrollbar
     if (total_rows > SET_LIST_ROWS) {
         const float sb_frac  = static_cast<float>(SET_LIST_ROWS) / static_cast<float>(total_rows);
         const float sb_top   = static_cast<float>(scroll) / static_cast<float>(total_rows);
@@ -502,25 +444,20 @@ static bool draw_device_list(
 }
 
 void AppUI::draw_settings(UIState& s) {
-    // Panel is anchored just above the footer, right-aligned.
     const int px = m_width - PAD - SET_PANEL_W;
     const int py = m_height - FOOTER_H - SET_PANEL_H - 4;
 
-    // Shadow / backdrop
     DrawRectangle(px - 4, py - 4, SET_PANEL_W + 8, SET_PANEL_H + 8,
                   {0, 0, 0, 120});
 
-    // Panel background
     DrawRectangleRounded({(float)px, (float)py, (float)SET_PANEL_W, (float)SET_PANEL_H},
                          0.04f, 4, COL_SURFACE);
     DrawRectangleRoundedLines({(float)px, (float)py, (float)SET_PANEL_W, (float)SET_PANEL_H},
                                0.04f, 4, COL_BORDER);
 
-    // Title bar
     const int title_y = py + 10;
     DrawText("Audio Device Settings", px + 12, title_y, FONT_LABEL, COL_TEXT);
 
-    // Close button (X) in the top-right corner
     const int close_sz = 18;
     const int close_x  = px + SET_PANEL_W - close_sz - 8;
     const int close_y  = py + 8;
@@ -534,7 +471,6 @@ void AppUI::draw_settings(UIState& s) {
 
     int cy = py + 36;
 
-    // ---- Capture (microphone) ----
     int new_cap = s.selected_capture;
     draw_device_list("Microphone (capture)", s.capture_devices,
                      s.selected_capture, m_scroll_capture,
@@ -545,7 +481,6 @@ void AppUI::draw_settings(UIState& s) {
     }
     cy += SET_SECTION_H;
 
-    // ---- Playback (speaker) ----
     int new_pb = s.selected_playback;
     draw_device_list("Speaker (local playback)", s.playback_devices,
                      s.selected_playback, m_scroll_playback,
@@ -556,7 +491,6 @@ void AppUI::draw_settings(UIState& s) {
     }
     cy += SET_SECTION_H;
 
-    // ---- Loopback (VB-CABLE / Discord) ----
     int new_lb = s.selected_loopback;
     draw_device_list("Loopback output (e.g. VB-CABLE Input)", s.playback_devices,
                      s.selected_loopback, m_scroll_loopback,
@@ -567,37 +501,31 @@ void AppUI::draw_settings(UIState& s) {
     }
     cy += SET_SECTION_H;
 
-    // ---- Loopback volume slider ----
     {
         const int lx        = px + 8;
         const int lw        = SET_PANEL_W - 16;
         const int label_y   = cy + 2;
 
-        // Label + current value
         char vol_label[48];
         snprintf(vol_label, sizeof(vol_label),
                  "Loopback volume: %.0f%%",
                  static_cast<double>(s.loopback_volume * 100.0f));
         DrawText(vol_label, lx, label_y, FONT_LABEL, COL_TEXT_DIM);
 
-        // Track
         const int track_y  = label_y + SET_HEADER_H;
         const int track_h  = 6;
         const int track_cx = track_y + track_h / 2;
         DrawRectangle(lx, track_cx - track_h / 2, lw, track_h, COL_BORDER);
 
-        // Filled portion
         const float clamped_vol = std::clamp(s.loopback_volume, 0.0f, 2.0f);
         const int   fill_w     = static_cast<int>(clamped_vol / 2.0f * static_cast<float>(lw));
         DrawRectangle(lx, track_cx - track_h / 2, fill_w, track_h, COL_ACCENT_BLUE);
 
-        // Knob
         const int knob_r  = 8;
         const int knob_cx = lx + fill_w;
         DrawCircle(knob_cx, track_cx, knob_r, COL_ACCENT_BLUE);
         DrawCircleLines(knob_cx, track_cx, knob_r, COL_TEXT);
 
-        // Drag detection
         const Vector2    mp        = GetMousePosition();
         const Rectangle  track_rc  = { (float)lx, (float)(track_cx - knob_r),
                                         (float)lw, (float)(knob_r * 2) };

@@ -56,8 +56,6 @@ std::vector<int16_t> TextToSpeech::synthesize(const std::string& text) const {
         return {};
     }
 
-    // Parent holds the write-end of stdin and read-end of stdout;
-    // those must not be inherited by the child process.
     SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0);
     SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
 
@@ -75,7 +73,7 @@ std::vector<int16_t> TextToSpeech::synthesize(const std::string& text) const {
     const BOOL ok = CreateProcessA(
         nullptr, cmd_buf.data(),
         nullptr, nullptr,
-        TRUE, CREATE_NO_WINDOW,  // hide the console window piper would open
+        TRUE, CREATE_NO_WINDOW,
         nullptr, nullptr,
         &si, &pi
     );
